@@ -781,7 +781,50 @@
     });
   }
 
-  // يرجع { allowed, ips }
+  // فحص الوصول لراوتر شبكة 192.168.1.x (مهم لـ GitHub Pages / HTTPS)
+  function probeLocalLan() {
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        resolve(!!ok);
+      }
+      setTimeout(function () {
+        finish(false);
+      }, 3000);
+
+      var hosts = ["192.168.1.1", "192.168.1.254"];
+
+      hosts.forEach(function (host) {
+        var base = "http://" + host;
+
+        // fetch + Local Network Access (Chrome)
+        ["local", undefined].forEach(function (space) {
+          try {
+            var opts = { method: "GET", mode: "no-cors", cache: "no-store" };
+            if (space) opts.targetAddressSpace = space;
+            fetch(base + "/?_=" + Date.now(), opts)
+              .then(function () {
+                finish(true);
+              })
+              .catch(function () {});
+          } catch (e) {}
+        });
+
+        // Image (محتوى مختلط سلبي)
+        try {
+          var img = new Image();
+          img.onload = function () {
+            finish(true);
+          };
+          img.src = base + "/favicon.ico?_=" + Date.now();
+        } catch (e2) {}
+      });
+    });
+  }
+
+  // WebRTC — بيرجع الـ IP لما المتصفح يسمح (محلي / بعض المتصفحات)
   function detectLocalIps() {
     return new Promise(function (resolve) {
       var done = false;
@@ -813,14 +856,21 @@
         pc.createDataChannel("");
         pc.onicecandidate = function (e) {
           if (done) return;
-          if (!e || !e.candidate || !e.candidate.candidate) {
-            // null candidate = end
+          if (!e || !e.candidate) {
             if (e && !e.candidate) finish();
             return;
           }
-          var m = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(
-            e.candidate.candidate
-          );
+          // address موجود في متصفحات حديثة
+          var addr = e.candidate.address || e.candidate.ip;
+          if (addr && /^[0-9.]+$/.test(addr)) {
+            if (ips.indexOf(addr) === -1) ips.push(addr);
+            if (/^192\.168\.1\./.test(addr)) {
+              finish();
+              return;
+            }
+          }
+          var cand = e.candidate.candidate || "";
+          var m = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(cand);
           if (!m) return;
           var ip = m[1];
           if (ips.indexOf(ip) === -1) ips.push(ip);
@@ -829,6 +879,48 @@
         pc.createOffer()
           .then(function (o) {
             return pc.setLocalDescription(o);
+          })
+          .then(function () {
+            // استخراج IP من الـ SDP لو موجود
+            try {
+              var sdp =
+                (pc.localDescription && pc.localDescription.sdp) || "";
+              var re = /([0-9]{1,3}(\.[0-9]{1,3}){3})/g;
+              var mm;
+              while ((mm = re.exec(sdp))) {
+                if (ips.indexOf(mm[1]) === -1) ips.push(mm[1]);
+              }
+              if (
+                ips.some(function (x) {
+                  return /^192\.168\.1\./.test(x);
+                })
+              ) {
+                finish();
+                return;
+              }
+            } catch (e) {}
+            if (!pc || !pc.getStats) return;
+            return pc.getStats().then(function (stats) {
+              stats.forEach(function (r) {
+                if (!r) return;
+                var ip =
+                  r.ip ||
+                  r.address ||
+                  r.localCandidateIp ||
+                  r.ipAddress ||
+                  "";
+                if (ip && /^[0-9.]+$/.test(ip) && ips.indexOf(ip) === -1) {
+                  ips.push(ip);
+                }
+              });
+              if (
+                ips.some(function (x) {
+                  return /^192\.168\.1\./.test(x);
+                })
+              ) {
+                finish();
+              }
+            });
           })
           .catch(function () {
             finish();
@@ -839,10 +931,27 @@
     });
   }
 
+  // مسموح لو WebRTC لقى 192.168.1.x أو قدَر يوصل للراوتر المحلي
   function isAllowedNetwork() {
-    return detectLocalIps().then(function (res) {
-      return res.allowed;
-    });
+    return Promise.all([detectLocalIps(), probeLocalLan()]).then(
+      function (results) {
+        var webrtc = results[0];
+        var lan = results[1];
+        return !!(webrtc.allowed || lan);
+      }
+    );
+  }
+
+  function checkNetworkAccess() {
+    return Promise.all([detectLocalIps(), probeLocalLan()]).then(
+      function (results) {
+        return {
+          allowed: !!(results[0].allowed || results[1]),
+          ips: results[0].ips || [],
+          lanReachable: !!results[1],
+        };
+      }
+    );
   }
 
   function checkAndLockIfNeeded() {
@@ -856,8 +965,8 @@
       return;
     }
 
-    // 2) فحص نت حقيقي + IP بالتوازي
-    Promise.all([probeInternet(), detectLocalIps()])
+    // 2) فحص نت حقيقي + الشبكة المحلية (WebRTC أو الوصول للراوتر 192.168.1.x)
+    Promise.all([probeInternet(), checkNetworkAccess()])
       .then(function (results) {
         checkInProgress = false;
         if (siteLocked) return;
