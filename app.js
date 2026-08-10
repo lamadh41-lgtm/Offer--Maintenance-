@@ -571,7 +571,7 @@
       toast("تم تصدير المقايسة بنجاح", "success");
     }
 
-    // جرب ExcelJS أولاً (يحافظ على الألوان)، ولو فشل استخدم SheetJS
+    // جرب ExcelJS أولاً (يحافظ على القالب والألوان واللوجو)، ولو فشل استخدم SheetJS
     if (typeof ExcelJS !== "undefined") {
       var workbook = new ExcelJS.Workbook();
       workbook.xlsx
@@ -580,9 +580,31 @@
           var ws = workbook.worksheets[0];
           if (!ws) throw new Error("لا توجد ورقة في القالب");
           function setVal(addr, value) {
-            ws.getCell(addr).value = value === null ? null : value;
+            var cell = ws.getCell(addr);
+            cell.value = value === null ? null : value;
           }
           applyCommon(setVal);
+
+          // تأكيد وجود لوجو البرجسي أعلى المقايسة
+          try {
+            var hasImg =
+              typeof ws.getImages === "function" &&
+              ws.getImages().length > 0;
+            if (!hasImg && window.MAQAYSA_LOGO_B64) {
+              var logoId = workbook.addImage({
+                base64: window.MAQAYSA_LOGO_B64,
+                extension: "png",
+              });
+              // نفس منطقة اللوجو تقريباً في القالب الأصلي (يمين أعلى)
+              ws.addImage(logoId, {
+                tl: { col: 11.2, row: 0.1 },
+                ext: { width: 220, height: 66 },
+              });
+            }
+          } catch (logoErr) {
+            console.warn("logo add skipped", logoErr);
+          }
+
           return workbook.xlsx.writeBuffer();
         })
         .then(function (buffer) {
@@ -709,18 +731,26 @@
     var msgEl = document.getElementById("ipMsg");
     var iconEl = document.getElementById("ipIcon");
 
+    var specialArea = document.querySelector("#ipBlock .special-area");
+    var pwBox = document.getElementById("pwBox");
+
     if (isOffline) {
       if (titleEl) titleEl.textContent = "انقطع الاتصال بالإنترنت";
       if (msgEl)
         msgEl.innerHTML =
           "الاتصال بالإنترنت انقطع.<br>اتأكد من الواي فاي أو بيانات الموبايل ثم أعد فتح الصفحة.";
       if (iconEl) iconEl.textContent = "📡";
+      // إخفاء زر الحالة الخاصة عند انقطاع النت
+      if (specialArea) specialArea.style.display = "none";
+      if (pwBox) pwBox.classList.remove("show");
     } else {
       if (titleEl) titleEl.textContent = "للأسف مش هينفع تدخل الموقع";
       if (msgEl)
         msgEl.innerHTML =
           "الموقع متاح فقط من الشبكة المحددة.<br>اتأكد إنك متصل بنفس الشبكة ثم أعد فتح الصفحة.";
       if (iconEl) iconEl.textContent = "🚫";
+      // إظهار زر الحالة الخاصة في حظر الشبكة
+      if (specialArea) specialArea.style.display = "";
     }
 
     var ipEl = document.getElementById("ipBlock");
