@@ -10,6 +10,24 @@
 </head>
 <body>
 
+<!-- تنبيه إذن الشبكة المحلية (Chrome) -->
+<div id="lanPermTip" role="dialog" aria-modal="true" aria-labelledby="lanPermTitle">
+  <div class="bg-anim" aria-hidden="true"></div>
+  <div class="ip-card lan-perm-card">
+    <div class="ip-icon" aria-hidden="true">🔐</div>
+    <h2 id="lanPermTitle">مطلوب إذن الشبكة المحلية</h2>
+    <p id="lanPermMsg">
+      عشان الموقع يشتغل صح، المتصفح هيطلب منك السماح بالوصول للشبكة المحلية
+      (<b>Local Network</b>).<br><br>
+      اضغط الزر بالأسفل، وبعدين من رسالة Chrome اختار
+      <b style="color:#4ade80">Allow</b> / <b style="color:#4ade80">سماح</b>.
+    </p>
+    <button type="button" class="btn btn-primary" id="btnLanPerm" style="width:100%;margin-top:8px">
+      حسناً — متابعة وفتح إذن Chrome
+    </button>
+  </div>
+</div>
+
 <!-- شاشة الحظر (شبكة خاطئة أو انقطاع إنترنت) -->
 <div id="ipBlock" role="dialog" aria-modal="true" aria-labelledby="ipTitle">
   <div class="bg-anim" aria-hidden="true"></div>

@@ -675,7 +675,9 @@
 
   function showIntro() {
     var ipEl = document.getElementById("ipBlock");
+    var tipEl = document.getElementById("lanPermTip");
     if (ipEl) ipEl.classList.remove("show");
+    if (tipEl) tipEl.classList.remove("show");
     document.getElementById("introScreen").classList.add("show");
     document.getElementById("mainApp").style.display = "none";
     createParticles();
@@ -724,6 +726,8 @@
     var ipEl = document.getElementById("ipBlock");
     var introEl = document.getElementById("introScreen");
     var mainEl = document.getElementById("mainApp");
+    var tipEl = document.getElementById("lanPermTip");
+    if (tipEl) tipEl.classList.remove("show");
     if (ipEl) ipEl.classList.add("show");
     if (mainEl) mainEl.style.display = "none";
     if (introEl) introEl.classList.remove("show");
@@ -1034,6 +1038,79 @@
     startNetworkMonitor();
   }
 
+  var LAN_OK_KEY = "tm_lan_ok";
+
+  function setLanOk(ok) {
+    try {
+      if (ok) localStorage.setItem(LAN_OK_KEY, "1");
+      else localStorage.removeItem(LAN_OK_KEY);
+    } catch (e) {}
+  }
+
+  function hasLanOk() {
+    try {
+      return localStorage.getItem(LAN_OK_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function runNetworkGate() {
+    var ipEl = document.getElementById("ipBlock");
+    var tipEl = document.getElementById("lanPermTip");
+    if (tipEl) tipEl.classList.remove("show");
+
+    // رجّع نص الزر لو موجود
+    var btnLan = document.getElementById("btnLanPerm");
+    if (btnLan) {
+      btnLan.disabled = false;
+      btnLan.textContent = "حسناً — متابعة وفتح إذن Chrome";
+    }
+
+    if (!navigator.onLine) {
+      setLanOk(false);
+      banDelayTimer = setTimeout(function () {
+        lockSite("offline");
+      }, 1500);
+      return;
+    }
+
+    // نفحص الشبكة (وChrome يظهر طلب Local Network لو لسه متعملش Allow)
+    var startTime = Date.now();
+    isAllowedNetwork().then(function (ok) {
+      if (ok) {
+        // تم السماح ونجح الفحص → في الريفرش الجاي مش هنظهر نافذة التنبيه
+        setLanOk(true);
+        if (ipEl) ipEl.classList.remove("show");
+        showIntro();
+      } else {
+        // رفض الإذن أو شبكة غلط → امسح العلامة عشان التنبيه يرجع بعد الريفرش
+        setLanOk(false);
+        var elapsed = Date.now() - startTime;
+        var remaining = Math.max(0, 2500 - elapsed);
+        banDelayTimer = setTimeout(function () {
+          lockSite(navigator.onLine ? "network" : "offline");
+        }, remaining);
+      }
+    });
+  }
+
+  function showLanPermissionTip() {
+    var tipEl = document.getElementById("lanPermTip");
+    var ipEl = document.getElementById("ipBlock");
+    var introEl = document.getElementById("introScreen");
+    var mainEl = document.getElementById("mainApp");
+    var btnLan = document.getElementById("btnLanPerm");
+    if (mainEl) mainEl.style.display = "none";
+    if (introEl) introEl.classList.remove("show");
+    if (ipEl) ipEl.classList.remove("show");
+    if (btnLan) {
+      btnLan.disabled = false;
+      btnLan.textContent = "حسناً — متابعة وفتح إذن Chrome";
+    }
+    if (tipEl) tipEl.classList.add("show");
+  }
+
   function boot() {
     var params = new URLSearchParams(location.search || "");
     var forceDev = params.get("dev") === "1";
@@ -1041,11 +1118,13 @@
     var ipEl = document.getElementById("ipBlock");
     var introEl = document.getElementById("introScreen");
     var mainEl = document.getElementById("mainApp");
+    var tipEl = document.getElementById("lanPermTip");
 
     // كل الشاشات متخفية في البداية
     if (mainEl) mainEl.style.display = "none";
     if (introEl) introEl.classList.remove("show");
     if (ipEl) ipEl.classList.remove("show");
+    if (tipEl) tipEl.classList.remove("show");
 
     if (isDevMode) {
       showIntro();
@@ -1054,29 +1133,21 @@
 
     // لو مفيش نت من الأول
     if (!navigator.onLine) {
+      setLanOk(false);
       banDelayTimer = setTimeout(function () {
         lockSite("offline");
-      }, 3000);
+      }, 2000);
       return;
     }
 
-    // نفحص الشبكة (المهلة داخل isAllowedNetwork = 3 ثوانٍ)
-    // لو مسموحة → نفتح الأنترو فوراً
-    // لو مش مسموحة → الرسالة تظهر بعد انتهاء الفحص (حوالي 3 ثوانٍ)
-    var startTime = Date.now();
-    isAllowedNetwork().then(function (ok) {
-      if (ok) {
-        if (ipEl) ipEl.classList.remove("show");
-        showIntro();
-      } else {
-        var elapsed = Date.now() - startTime;
-        var remaining = Math.max(0, 3000 - elapsed);
-        banDelayTimer = setTimeout(function () {
-          // لو انقطع النت أثناء الفحص
-          lockSite(navigator.onLine ? "network" : "offline");
-        }, remaining);
-      }
-    });
+    // لو المستخدم وافق قبل كده ونجح الفحص → نعدي من غير نافذة التنبيه
+    if (hasLanOk()) {
+      runNetworkGate();
+      return;
+    }
+
+    // أول مرة أو بعد الرفض → نافذة التنبيه + عند الضغط يتبعت طلب البرميشن
+    showLanPermissionTip();
   }
 
   // ——— Sound toggle UI ———
@@ -1122,6 +1193,18 @@
     var btnSpecial = document.getElementById("btnSpecial");
     if (btnSpecial)
       btnSpecial.addEventListener("click", showPasswordBox);
+
+    var btnLanPerm = document.getElementById("btnLanPerm");
+    if (btnLanPerm) {
+      btnLanPerm.addEventListener("click", function () {
+        if (window.SoundEngine) SoundEngine.click();
+        var btn = btnLanPerm;
+        btn.disabled = true;
+        btn.textContent = "جاري فتح إذن Chrome… اضغط Allow";
+        // تشغيل الفحص فوراً عشان Chrome يظهر نافذة Local Network
+        runNetworkGate();
+      });
+    }
 
     var btnCheckPw = document.getElementById("btnCheckPw");
     if (btnCheckPw) btnCheckPw.addEventListener("click", checkPassword);
