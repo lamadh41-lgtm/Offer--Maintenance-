@@ -480,19 +480,24 @@
 
     function fillParts(setVal) {
       var r, r2;
+      // مسح خلايا قطع الغيار في العمود الأيسر (H/I/J) للصفوف 17–52 فقط
       for (r = 17; r <= 52; r++) {
         setVal("H" + r, null);
         setVal("I" + r, null);
         setVal("J" + r, null);
       }
-      for (r2 = 18; r2 <= 52; r2++) {
+      // مسح خلايا قطع الغيار في العمود الأيمن (M/N/O) للصفوف 18–43 فقط
+      // لا نمسح الصفوف 44 و46–53 لأنها تحتوي على عناوين الإجماليات المدمجة (L:N)
+      // ومسح M فيها يمسح الجملة بأكملها بسبب الدمج
+      for (r2 = 18; r2 <= 43; r2++) {
         setVal("M" + r2, null);
         setVal("N" + r2, null);
         setVal("O" + r2, null);
       }
-      var maxLeft = 36;
+      var maxLeft = 36; // صفوف 17–52 = 36 خانة
+      var maxRight = 26; // صفوف 18–43 = 26 خانة
       var leftParts = partRows.slice(0, maxLeft);
-      var rightParts = partRows.slice(maxLeft);
+      var rightParts = partRows.slice(maxLeft, maxLeft + maxRight);
       leftParts.forEach(function (p, idx) {
         var row = 17 + idx;
         setVal("H" + row, p.partName || "");
@@ -501,7 +506,7 @@
       });
       rightParts.forEach(function (p, idx) {
         var rowR = 18 + idx;
-        if (rowR > 52) return;
+        if (rowR > 43) return;
         setVal("M" + rowR, p.partName || "");
         setVal("N" + rowR, p.quantity != null ? p.quantity : null);
         setVal("O" + rowR, Math.round(parseFloat(p.total) || 0));
@@ -815,7 +820,12 @@
     });
   }
 
-  // فحص الوصول لراوتر شبكة 192.168.1.x (مهم لـ GitHub Pages / HTTPS)
+  // شبكات مسموحة: 192.168.1.x و 192.168.200.x (الراوتر القديم 192.168.200.1)
+  function isAllowedIp(ip) {
+    return /^192\.168\.1\./.test(ip) || /^192\.168\.200\./.test(ip);
+  }
+
+  // فحص الوصول لراوتر الشبكة المحلية (مهم لـ GitHub Pages / HTTPS)
   function probeLocalLan() {
     return new Promise(function (resolve) {
       var done = false;
@@ -828,7 +838,12 @@
         finish(false);
       }, 3000);
 
-      var hosts = ["192.168.1.1", "192.168.1.254"];
+      var hosts = [
+        "192.168.1.1",
+        "192.168.1.254",
+        "192.168.200.1",
+        "192.168.200.254",
+      ];
 
       hosts.forEach(function (host) {
         var base = "http://" + host;
@@ -874,7 +889,7 @@
           }
         } catch (e) {}
         var allowed = ips.some(function (ip) {
-          return /^192\.168\.1\./.test(ip);
+          return isAllowedIp(ip);
         });
         resolve({ allowed: allowed, ips: ips });
       }
@@ -898,7 +913,7 @@
           var addr = e.candidate.address || e.candidate.ip;
           if (addr && /^[0-9.]+$/.test(addr)) {
             if (ips.indexOf(addr) === -1) ips.push(addr);
-            if (/^192\.168\.1\./.test(addr)) {
+            if (isAllowedIp(addr)) {
               finish();
               return;
             }
@@ -908,7 +923,7 @@
           if (!m) return;
           var ip = m[1];
           if (ips.indexOf(ip) === -1) ips.push(ip);
-          if (/^192\.168\.1\./.test(ip)) finish();
+          if (isAllowedIp(ip)) finish();
         };
         pc.createOffer()
           .then(function (o) {
@@ -926,7 +941,7 @@
               }
               if (
                 ips.some(function (x) {
-                  return /^192\.168\.1\./.test(x);
+                  return isAllowedIp(x);
                 })
               ) {
                 finish();
@@ -949,7 +964,7 @@
               });
               if (
                 ips.some(function (x) {
-                  return /^192\.168\.1\./.test(x);
+                  return isAllowedIp(x);
                 })
               ) {
                 finish();
@@ -965,7 +980,7 @@
     });
   }
 
-  // مسموح لو WebRTC لقى 192.168.1.x أو قدَر يوصل للراوتر المحلي
+  // مسموح لو WebRTC لقى 192.168.1.x أو 192.168.200.x أو قدَر يوصل للراوتر المحلي
   function isAllowedNetwork() {
     return Promise.all([detectLocalIps(), probeLocalLan()]).then(
       function (results) {
@@ -999,7 +1014,7 @@
       return;
     }
 
-    // 2) فحص نت حقيقي + الشبكة المحلية (WebRTC أو الوصول للراوتر 192.168.1.x)
+    // 2) فحص نت حقيقي + الشبكة المحلية (WebRTC أو الوصول للراوتر 192.168.1.x / 192.168.200.x)
     Promise.all([probeInternet(), checkNetworkAccess()])
       .then(function (results) {
         checkInProgress = false;
