@@ -10,42 +10,6 @@
 </head>
 <body>
 
-<!-- تنبيه إذن الشبكة المحلية (Chrome) -->
-<div id="lanPermTip" role="dialog" aria-modal="true" aria-labelledby="lanPermTitle">
-  <div class="bg-anim" aria-hidden="true"></div>
-  <div class="ip-card lan-perm-card">
-    <div class="ip-icon" aria-hidden="true">🔐</div>
-    <h2 id="lanPermTitle">مطلوب إذن الشبكة المحلية</h2>
-    <p id="lanPermMsg">
-      عشان الموقع يشتغل صح، المتصفح هيطلب منك السماح بالوصول للشبكة المحلية
-      (<b>Local Network</b>).<br><br>
-      اضغط الزر بالأسفل، وبعدين من رسالة Chrome اختار
-      <b style="color:#4ade80">Allow</b> / <b style="color:#4ade80">سماح</b>.
-    </p>
-    <button type="button" class="btn btn-primary" id="btnLanPerm" style="width:100%;margin-top:8px">
-      حسناً — متابعة وفتح إذن Chrome
-    </button>
-  </div>
-</div>
-
-<!-- شاشة الحظر (شبكة خاطئة أو انقطاع إنترنت) -->
-<div id="ipBlock" role="dialog" aria-modal="true" aria-labelledby="ipTitle">
-  <div class="bg-anim" aria-hidden="true"></div>
-  <div class="ip-card">
-    <div class="ip-icon" id="ipIcon" aria-hidden="true">🚫</div>
-    <h2 id="ipTitle">للأسف مش هينفع تدخل الموقع</h2>
-    <p id="ipMsg">الموقع متاح فقط من الشبكة المحددة.<br>اتأكد إنك متصل بنفس الشبكة ثم أعد فتح الصفحة.</p>
-    <div class="special-area">
-      <button type="button" class="btn btn-ghost" id="btnSpecial">حالة خاصة</button>
-      <div class="pw-box" id="pwBox">
-        <input type="password" id="pwInput" placeholder="أدخل كلمة المرور" autocomplete="off" inputmode="numeric" aria-label="كلمة المرور">
-        <div class="pw-err" id="pwErr" role="alert">كلمة المرور غير صحيحة</div>
-        <button type="button" class="btn btn-primary" style="width:100%;margin-top:10px" id="btnCheckPw">تأكيد</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- شاشة الأنترو -->
 <div id="introScreen" role="dialog" aria-modal="true" aria-labelledby="introTitle">
   <div class="bg-layer" aria-hidden="true"></div>
@@ -55,7 +19,7 @@
   <div class="particles" id="particles" aria-hidden="true"></div>
   <div class="intro-card">
     <div class="logo-wrap">
-      <img src="data:image/jpeg;base64,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" alt="Toyota" width="92" height="92">
+      <img src="logo_toyota.png" alt="Toyota" width="92" height="92">
     </div>
     <h2 id="introTitle">نظام الصيانة المتقدم</h2>
     <p class="sub">Toyota Maintenance · أسعار خاصة بالخصم</p>
@@ -135,9 +99,9 @@
 <button type="button" class="sound-toggle" id="soundToggle" title="إيقاف الصوت" aria-label="تبديل الصوت">🔊</button>
 <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="vendor/exceljs.min.js"></script>
+<script src="vendor/FileSaver.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
 <script src="template_b64.js"></script>
 <script src="data.js"></script>
 <script src="utils.js"></script>

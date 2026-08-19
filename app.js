@@ -641,51 +641,12 @@
         toast("فشل التصدير: " + (e.message || e), "error");
       }
     } else {
-      toast("مكتبة التصدير غير محمّلة — تأكد من الاتصال بالإنترنت", "error");
+      toast("مكتبة التصدير غير محمّلة", "error");
     }
   }
 
-  // ——— Auth & Screens ———
-  function getDynamicPassword() {
-    var now = new Date();
-    var h = now.getHours() % 12;
-    if (h === 0) h = 12;
-    var d = now.getDate();
-    var m = now.getMonth() + 1;
-    var y = now.getFullYear();
-    return String(h) + String(d) + String(m) + String(y);
-  }
 
-  function showPasswordBox() {
-    var box = document.getElementById("pwBox");
-    box.classList.add("show");
-    document.getElementById("pwErr").classList.remove("show");
-    var inp = document.getElementById("pwInput");
-    inp.value = "";
-    if (window.SoundEngine) SoundEngine.open();
-    setTimeout(function () {
-      inp.focus();
-    }, 50);
-  }
-
-  function checkPassword() {
-    var input = (document.getElementById("pwInput").value || "").replace(
-      /\s+/g,
-      ""
-    );
-    var expected = getDynamicPassword();
-    if (input === expected) {
-      document.getElementById("ipBlock").classList.remove("show");
-      if (window.SoundEngine) SoundEngine.success();
-      showIntro();
-    } else {
-      document.getElementById("pwErr").classList.add("show");
-      document.getElementById("pwInput").value = "";
-      document.getElementById("pwInput").focus();
-      if (window.SoundEngine) SoundEngine.error();
-    }
-  }
-
+  // ——— Screens (simplified — no network / no password) ———
   function createParticles() {
     var box = document.getElementById("particles");
     if (!box || box.childNodes.length) return;
@@ -701,377 +662,10 @@
   }
 
   function showIntro() {
-    var ipEl = document.getElementById("ipBlock");
-    var tipEl = document.getElementById("lanPermTip");
-    if (ipEl) ipEl.classList.remove("show");
-    if (tipEl) tipEl.classList.remove("show");
     document.getElementById("introScreen").classList.add("show");
     document.getElementById("mainApp").style.display = "none";
     createParticles();
     if (window.SoundEngine) SoundEngine.open();
-  }
-
-  var networkMonitorTimer = null;
-  var isDevMode = false;
-  var banDelayTimer = null;
-  var networkListenersAttached = false;
-  var checkInProgress = false;
-  var siteLocked = false;
-
-  // reason: "offline" | "network"
-  function lockSite(reason) {
-    if (siteLocked && reason !== "offline") {
-      // لو اتقفل بسبب offline، متغيرش الرسالة لـ network
-    }
-    siteLocked = true;
-
-    if (banDelayTimer) {
-      clearTimeout(banDelayTimer);
-      banDelayTimer = null;
-    }
-
-    var isOffline = reason === "offline";
-
-    var titleEl = document.getElementById("ipTitle");
-    var msgEl = document.getElementById("ipMsg");
-    var iconEl = document.getElementById("ipIcon");
-
-    var specialArea = document.querySelector("#ipBlock .special-area");
-    var pwBox = document.getElementById("pwBox");
-
-    if (isOffline) {
-      if (titleEl) titleEl.textContent = "انقطع الاتصال بالإنترنت";
-      if (msgEl)
-        msgEl.innerHTML =
-          "الاتصال بالإنترنت انقطع.<br>اتأكد من الواي فاي أو بيانات الموبايل ثم أعد فتح الصفحة.";
-      if (iconEl) iconEl.textContent = "📡";
-      // إخفاء زر الحالة الخاصة عند انقطاع النت
-      if (specialArea) specialArea.style.display = "none";
-      if (pwBox) pwBox.classList.remove("show");
-    } else {
-      if (titleEl) titleEl.textContent = "للأسف مش هينفع تدخل الموقع";
-      if (msgEl)
-        msgEl.innerHTML =
-          "الموقع متاح فقط من الشبكة المحددة.<br>اتأكد إنك متصل بنفس الشبكة ثم أعد فتح الصفحة.";
-      if (iconEl) iconEl.textContent = "🚫";
-      // إظهار زر الحالة الخاصة في حظر الشبكة
-      if (specialArea) specialArea.style.display = "";
-    }
-
-    var ipEl = document.getElementById("ipBlock");
-    var introEl = document.getElementById("introScreen");
-    var mainEl = document.getElementById("mainApp");
-    var tipEl = document.getElementById("lanPermTip");
-    if (tipEl) tipEl.classList.remove("show");
-    if (ipEl) ipEl.classList.add("show");
-    if (mainEl) mainEl.style.display = "none";
-    if (introEl) introEl.classList.remove("show");
-    stopNetworkMonitor();
-    if (window.SoundEngine) SoundEngine.error();
-  }
-
-  // فحص حقيقي للإنترنت (مش بس navigator.onLine)
-  function probeInternet() {
-    return new Promise(function (resolve) {
-      if (typeof navigator.onLine === "boolean" && !navigator.onLine) {
-        resolve(false);
-        return;
-      }
-      var done = false;
-      function finish(ok) {
-        if (done) return;
-        done = true;
-        resolve(!!ok);
-      }
-      setTimeout(function () {
-        finish(false);
-      }, 2500);
-
-      // محاولة سريعة لعدة endpoints
-      var urls = [
-        "https://www.gstatic.com/generate_204",
-        "https://connectivitycheck.gstatic.com/generate_204",
-        "https://dns.google/resolve?name=example.com&type=A",
-      ];
-      urls.forEach(function (url) {
-        try {
-          fetch(url, {
-            method: "GET",
-            mode: "no-cors",
-            cache: "no-store",
-          })
-            .then(function () {
-              finish(true);
-            })
-            .catch(function () {});
-        } catch (e) {}
-      });
-
-      // صورة كاحتياطي
-      try {
-        var img = new Image();
-        img.onload = function () {
-          finish(true);
-        };
-        img.onerror = function () {};
-        img.src =
-          "https://www.google.com/favicon.ico?_=" + Date.now();
-      } catch (e2) {}
-    });
-  }
-
-  // شبكات مسموحة: 192.168.1.x و 192.168.200.x (الراوتر القديم 192.168.200.1)
-  function isAllowedIp(ip) {
-    return /^192\.168\.1\./.test(ip) || /^192\.168\.200\./.test(ip);
-  }
-
-  // فحص الوصول لراوتر الشبكة المحلية (مهم لـ GitHub Pages / HTTPS)
-  function probeLocalLan() {
-    return new Promise(function (resolve) {
-      var done = false;
-      function finish(ok) {
-        if (done) return;
-        done = true;
-        resolve(!!ok);
-      }
-      setTimeout(function () {
-        finish(false);
-      }, 3000);
-
-      var hosts = [
-        "192.168.1.1",
-        "192.168.1.254",
-        "192.168.200.1",
-        "192.168.200.254",
-      ];
-
-      hosts.forEach(function (host) {
-        var base = "http://" + host;
-
-        // fetch + Local Network Access (Chrome)
-        ["local", undefined].forEach(function (space) {
-          try {
-            var opts = { method: "GET", mode: "no-cors", cache: "no-store" };
-            if (space) opts.targetAddressSpace = space;
-            fetch(base + "/?_=" + Date.now(), opts)
-              .then(function () {
-                finish(true);
-              })
-              .catch(function () {});
-          } catch (e) {}
-        });
-
-        // Image (محتوى مختلط سلبي)
-        try {
-          var img = new Image();
-          img.onload = function () {
-            finish(true);
-          };
-          img.src = base + "/favicon.ico?_=" + Date.now();
-        } catch (e2) {}
-      });
-    });
-  }
-
-  // WebRTC — بيرجع الـ IP لما المتصفح يسمح (محلي / بعض المتصفحات)
-  function detectLocalIps() {
-    return new Promise(function (resolve) {
-      var done = false;
-      var ips = [];
-      var pc = null;
-      function finish() {
-        if (done) return;
-        done = true;
-        try {
-          if (pc) {
-            pc.onicecandidate = null;
-            pc.close();
-          }
-        } catch (e) {}
-        var allowed = ips.some(function (ip) {
-          return isAllowedIp(ip);
-        });
-        resolve({ allowed: allowed, ips: ips });
-      }
-      setTimeout(finish, 2000);
-      try {
-        var RTC =
-          window.RTCPeerConnection || window.webkitRTCPeerConnection;
-        if (!RTC) {
-          finish();
-          return;
-        }
-        pc = new RTC({ iceServers: [], iceCandidatePoolSize: 0 });
-        pc.createDataChannel("");
-        pc.onicecandidate = function (e) {
-          if (done) return;
-          if (!e || !e.candidate) {
-            if (e && !e.candidate) finish();
-            return;
-          }
-          // address موجود في متصفحات حديثة
-          var addr = e.candidate.address || e.candidate.ip;
-          if (addr && /^[0-9.]+$/.test(addr)) {
-            if (ips.indexOf(addr) === -1) ips.push(addr);
-            if (isAllowedIp(addr)) {
-              finish();
-              return;
-            }
-          }
-          var cand = e.candidate.candidate || "";
-          var m = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(cand);
-          if (!m) return;
-          var ip = m[1];
-          if (ips.indexOf(ip) === -1) ips.push(ip);
-          if (isAllowedIp(ip)) finish();
-        };
-        pc.createOffer()
-          .then(function (o) {
-            return pc.setLocalDescription(o);
-          })
-          .then(function () {
-            // استخراج IP من الـ SDP لو موجود
-            try {
-              var sdp =
-                (pc.localDescription && pc.localDescription.sdp) || "";
-              var re = /([0-9]{1,3}(\.[0-9]{1,3}){3})/g;
-              var mm;
-              while ((mm = re.exec(sdp))) {
-                if (ips.indexOf(mm[1]) === -1) ips.push(mm[1]);
-              }
-              if (
-                ips.some(function (x) {
-                  return isAllowedIp(x);
-                })
-              ) {
-                finish();
-                return;
-              }
-            } catch (e) {}
-            if (!pc || !pc.getStats) return;
-            return pc.getStats().then(function (stats) {
-              stats.forEach(function (r) {
-                if (!r) return;
-                var ip =
-                  r.ip ||
-                  r.address ||
-                  r.localCandidateIp ||
-                  r.ipAddress ||
-                  "";
-                if (ip && /^[0-9.]+$/.test(ip) && ips.indexOf(ip) === -1) {
-                  ips.push(ip);
-                }
-              });
-              if (
-                ips.some(function (x) {
-                  return isAllowedIp(x);
-                })
-              ) {
-                finish();
-              }
-            });
-          })
-          .catch(function () {
-            finish();
-          });
-      } catch (err) {
-        finish();
-      }
-    });
-  }
-
-  // مسموح لو WebRTC لقى 192.168.1.x أو 192.168.200.x أو قدَر يوصل للراوتر المحلي
-  function isAllowedNetwork() {
-    return Promise.all([detectLocalIps(), probeLocalLan()]).then(
-      function (results) {
-        var webrtc = results[0];
-        var lan = results[1];
-        return !!(webrtc.allowed || lan);
-      }
-    );
-  }
-
-  function checkNetworkAccess() {
-    return Promise.all([detectLocalIps(), probeLocalLan()]).then(
-      function (results) {
-        return {
-          allowed: !!(results[0].allowed || results[1]),
-          ips: results[0].ips || [],
-          lanReachable: !!results[1],
-        };
-      }
-    );
-  }
-
-  function checkAndLockIfNeeded() {
-    if (isDevMode || siteLocked || checkInProgress) return;
-    checkInProgress = true;
-
-    // 1) navigator.onLine سريع
-    if (!navigator.onLine) {
-      checkInProgress = false;
-      lockSite("offline");
-      return;
-    }
-
-    // 2) فحص نت حقيقي + الشبكة المحلية (WebRTC أو الوصول للراوتر 192.168.1.x / 192.168.200.x)
-    Promise.all([probeInternet(), checkNetworkAccess()])
-      .then(function (results) {
-        checkInProgress = false;
-        if (siteLocked) return;
-        var online = results[0];
-        var net = results[1];
-        if (!online) {
-          lockSite("offline");
-          return;
-        }
-        if (!net.allowed) {
-          lockSite("network");
-        }
-      })
-      .catch(function () {
-        checkInProgress = false;
-      });
-  }
-
-  function startNetworkMonitor() {
-    stopNetworkMonitor();
-    if (isDevMode) return;
-    siteLocked = false;
-
-    // فحص كل ثانيتين
-    networkMonitorTimer = setInterval(checkAndLockIfNeeded, 2000);
-    // فحص فوري
-    checkAndLockIfNeeded();
-
-    if (!networkListenersAttached) {
-      networkListenersAttached = true;
-      window.addEventListener("offline", function () {
-        lockSite("offline");
-      });
-      window.addEventListener("online", function () {
-        if (!siteLocked) checkAndLockIfNeeded();
-      });
-      if (navigator.connection) {
-        try {
-          navigator.connection.addEventListener("change", function () {
-            if (!siteLocked) checkAndLockIfNeeded();
-          });
-        } catch (e) {}
-      }
-      document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "visible" && !siteLocked) {
-          checkAndLockIfNeeded();
-        }
-      });
-    }
-  }
-
-  function stopNetworkMonitor() {
-    if (networkMonitorTimer) {
-      clearInterval(networkMonitorTimer);
-      networkMonitorTimer = null;
-    }
   }
 
   function enterApp() {
@@ -1080,119 +674,14 @@
     if (window.SoundEngine) SoundEngine.success();
     initData();
     toast("مرحباً بك في نظام الصيانة", "success");
-    startNetworkMonitor();
-  }
-
-  var LAN_OK_KEY = "tm_lan_ok";
-
-  function setLanOk(ok) {
-    try {
-      if (ok) localStorage.setItem(LAN_OK_KEY, "1");
-      else localStorage.removeItem(LAN_OK_KEY);
-    } catch (e) {}
-  }
-
-  function hasLanOk() {
-    try {
-      return localStorage.getItem(LAN_OK_KEY) === "1";
-    } catch (e) {
-      return false;
-    }
-  }
-
-  function runNetworkGate() {
-    var ipEl = document.getElementById("ipBlock");
-    var tipEl = document.getElementById("lanPermTip");
-    if (tipEl) tipEl.classList.remove("show");
-
-    // رجّع نص الزر لو موجود
-    var btnLan = document.getElementById("btnLanPerm");
-    if (btnLan) {
-      btnLan.disabled = false;
-      btnLan.textContent = "حسناً — متابعة وفتح إذن Chrome";
-    }
-
-    if (!navigator.onLine) {
-      setLanOk(false);
-      banDelayTimer = setTimeout(function () {
-        lockSite("offline");
-      }, 1500);
-      return;
-    }
-
-    // نفحص الشبكة (وChrome يظهر طلب Local Network لو لسه متعملش Allow)
-    var startTime = Date.now();
-    isAllowedNetwork().then(function (ok) {
-      if (ok) {
-        // تم السماح ونجح الفحص → في الريفرش الجاي مش هنظهر نافذة التنبيه
-        setLanOk(true);
-        if (ipEl) ipEl.classList.remove("show");
-        showIntro();
-      } else {
-        // رفض الإذن أو شبكة غلط → امسح العلامة عشان التنبيه يرجع بعد الريفرش
-        setLanOk(false);
-        var elapsed = Date.now() - startTime;
-        var remaining = Math.max(0, 2500 - elapsed);
-        banDelayTimer = setTimeout(function () {
-          lockSite(navigator.onLine ? "network" : "offline");
-        }, remaining);
-      }
-    });
-  }
-
-  function showLanPermissionTip() {
-    var tipEl = document.getElementById("lanPermTip");
-    var ipEl = document.getElementById("ipBlock");
-    var introEl = document.getElementById("introScreen");
-    var mainEl = document.getElementById("mainApp");
-    var btnLan = document.getElementById("btnLanPerm");
-    if (mainEl) mainEl.style.display = "none";
-    if (introEl) introEl.classList.remove("show");
-    if (ipEl) ipEl.classList.remove("show");
-    if (btnLan) {
-      btnLan.disabled = false;
-      btnLan.textContent = "حسناً — متابعة وفتح إذن Chrome";
-    }
-    if (tipEl) tipEl.classList.add("show");
   }
 
   function boot() {
-    var params = new URLSearchParams(location.search || "");
-    var forceDev = params.get("dev") === "1";
-    isDevMode = forceDev || location.protocol === "file:";
-    var ipEl = document.getElementById("ipBlock");
-    var introEl = document.getElementById("introScreen");
     var mainEl = document.getElementById("mainApp");
-    var tipEl = document.getElementById("lanPermTip");
-
-    // كل الشاشات متخفية في البداية
+    var introEl = document.getElementById("introScreen");
     if (mainEl) mainEl.style.display = "none";
     if (introEl) introEl.classList.remove("show");
-    if (ipEl) ipEl.classList.remove("show");
-    if (tipEl) tipEl.classList.remove("show");
-
-    if (isDevMode) {
-      showIntro();
-      return;
-    }
-
-    // لو مفيش نت من الأول
-    if (!navigator.onLine) {
-      setLanOk(false);
-      banDelayTimer = setTimeout(function () {
-        lockSite("offline");
-      }, 2000);
-      return;
-    }
-
-    // لو المستخدم وافق قبل كده ونجح الفحص → نعدي من غير نافذة التنبيه
-    if (hasLanOk()) {
-      runNetworkGate();
-      return;
-    }
-
-    // أول مرة أو بعد الرفض → نافذة التنبيه + عند الضغط يتبعت طلب البرميشن
-    showLanPermissionTip();
+    showIntro();
   }
 
   // ——— Sound toggle UI ———
@@ -1200,13 +689,11 @@
     var btn = document.getElementById("soundToggle");
     if (!btn || !window.SoundEngine) return;
     if (SoundEngine.enabled) {
-      btn.classList.remove("muted");
-      btn.title = "إيقاف الصوت";
       btn.textContent = "🔊";
+      btn.title = "إيقاف الصوت";
     } else {
-      btn.classList.add("muted");
-      btn.title = "تشغيل الصوت";
       btn.textContent = "🔇";
+      btn.title = "تشغيل الصوت";
     }
   }
 
@@ -1234,32 +721,6 @@
 
     var btnExport = document.getElementById("btnExport");
     if (btnExport) btnExport.addEventListener("click", exportCSV);
-
-    var btnSpecial = document.getElementById("btnSpecial");
-    if (btnSpecial)
-      btnSpecial.addEventListener("click", showPasswordBox);
-
-    var btnLanPerm = document.getElementById("btnLanPerm");
-    if (btnLanPerm) {
-      btnLanPerm.addEventListener("click", function () {
-        if (window.SoundEngine) SoundEngine.click();
-        var btn = btnLanPerm;
-        btn.disabled = true;
-        btn.textContent = "جاري فتح إذن Chrome… اضغط Allow";
-        // تشغيل الفحص فوراً عشان Chrome يظهر نافذة Local Network
-        runNetworkGate();
-      });
-    }
-
-    var btnCheckPw = document.getElementById("btnCheckPw");
-    if (btnCheckPw) btnCheckPw.addEventListener("click", checkPassword);
-
-    var pwInput = document.getElementById("pwInput");
-    if (pwInput) {
-      pwInput.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") checkPassword();
-      });
-    }
 
     var btnEnter = document.getElementById("btnEnter");
     if (btnEnter) btnEnter.addEventListener("click", enterApp);
@@ -1291,10 +752,8 @@
 
   // Expose for inline if needed
   window.TM = {
-    clearAllFilters,
-    checkPassword,
-    showPasswordBox,
-    enterApp,
-    exportCSV,
+    clearAllFilters: clearAllFilters,
+    enterApp: enterApp,
+    exportCSV: exportCSV,
   };
 })();
